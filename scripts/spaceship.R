@@ -1,6 +1,7 @@
 library(tidyverse)
 library(tidymodels)
 library(patchwork)
+library(discrim)
 library(doParallel)
 
 # Setup -------------------------------------------------------------------
@@ -203,7 +204,7 @@ train_data |>
   count(CabinNum, Transported) |> 
   mutate(TotalCabinNum = sum(n), .by = CabinNum) |> 
   mutate(CabinNum = if_else(TotalCabinNum / sum(n) >= 0.002, 
-                               CabinNum, "Other")) |> 
+                            CabinNum, "Other")) |> 
   summarise(n = sum(n), .by = c(CabinNum, Transported)) |> 
   # filter(CabinNum != "Other") |> 
   ggplot(aes(x = factor(CabinNum), fill = Transported)) +
@@ -238,11 +239,10 @@ transform_preproc <-
            CabinSide + Destination + Age + VIP + RoomService +
            FoodCourt + ShoppingMall + Spa + VRDeck,
          data = train_data) |> 
-  step_normalize(Age) |> 
-  step_log(RoomService, FoodCourt, ShoppingMall, Spa, VRDeck) |> 
-  step_impute_linear(all_numeric_predictors()) |> 
-  step_cut(all_numeric_predictors(), breaks = 10) |>
+  step_impute_mean(all_numeric_predictors()) |> 
   step_impute_knn(all_nominal_predictors()) |> 
+  step_normalize(Age) |> 
+  step_log(RoomService, FoodCourt, ShoppingMall, Spa, VRDeck, offset = 1) |> 
   step_unknown(all_nominal_predictors()) |> 
   step_dummy(all_nominal_predictors())
 
@@ -252,20 +252,21 @@ pca_preproc <-
            CabinSide + Destination + Age + VIP + RoomService +
            FoodCourt + ShoppingMall + Spa + VRDeck,
          data = train_data) |> 
-  step_normalize(Age) |> 
-  step_log(RoomService, FoodCourt, ShoppingMall, Spa, VRDeck) |> 
   step_impute_mean(all_numeric_predictors()) |> 
-  step_cut(all_numeric_predictors(), breaks = 10) |>
   step_impute_knn(all_nominal_predictors()) |> 
-  step_other(CabinNum, threshold = 0.001) |> 
+  step_normalize(Age) |> 
+  step_log(RoomService, FoodCourt, ShoppingMall, Spa, VRDeck, offset = 1) |> 
+  step_other(CabinNum, threshold = 0.0015) |> 
   step_unknown(all_nominal_predictors()) |> 
   step_dummy(all_nominal_predictors()) |> 
   step_pca(all_predictors())
-  
-preproc <- list("pca" = pca_preproc)
-  # list("basic" = basic_preproc,
-  #      "transform" = transform_preproc,
-  #      "pca" = pca_preproc)
+
+preproc <-
+  list(
+    "basic" = basic_preproc,
+    "transform" = transform_preproc,
+    "pca" = pca_preproc
+  )
 
 
 
@@ -298,40 +299,85 @@ rf_spec <-
   rand_forest(trees = tune(), min_n = tune()) |> 
   set_mode("classification")
 
-# 5: SVM
-svm_spec <-
-  svm_linear(engine = "kernlab", cost = tune(), margin = tune()) |> 
+# 5: Linear Discriminant Analysis
+lda_spec <- 
+  discrim_linear(penalty = tune(), engine = "mda") |>
+  set_mode("classification")
+
+# 6: Naive Bayes
+nb_spec <-
+  naive_Bayes(smoothness = tune(), Laplace = tune(), engine = "naivebayes") |> 
+  set_mode("classification")
+
+knn_spec <-
+  nearest_neighbor(neighbors = tune(), weight_func = tune()) |> 
   set_mode("classification")
 
 # List all models
 models <-
   list(
-    "LogisticRegression" = logreg_spec,
-    "DecisionTree" = dtree_spec,
+    # "LogisticRegression" = logreg_spec,
+    # "DecisionTree" = dtree_spec,
     # "BoostedTree" = btree_spec,
     # "RandomForest" = rf_spec,
-    "SVM" = svm_spec
+    # "LDA" = lda_spec,
+    # "NaiveBayes" = nb_spec,
+    "KNearestNeigbor" = knn_spec
   )
 
 # Tune model's hyperparameters 
 results <-
   workflow_set(preproc = preproc, models = models, cross = TRUE) |> 
   workflow_map(resamples = train_folds, fn = "tune_grid", verbose = TRUE,
-               grid = 2, seed = 1234)
+               grid = 5, seed = 1234)
 
-top_model <- rank_results(results, rank_metric = "roc_auc")[1, 1] |> pull()
+n_top <- 3
+
+top_model_names <- rank_results(results, rank_metric = "roc_auc") |>
+  slice(1:(n_top*2)) |> pull(1) |> unique()
+
+predictions <- list()
+
+for (model_name in top_model_names) {
+  print(model_name)
+  best_parameters <-
+    results |>
+    extract_workflow_set_result(model_name) |>
+    select_best(metric = "roc_auc")
+  
+  top_model_workflow <-
+    results |> 
+    extract_workflow(model_name) |> 
+    finalize_workflow(best_parameters)
+  
+  model <- fit(top_model_workflow, train_data)
+  
+  predictions[[model_name]] <- predict(model, test_data)
+}
 
 
-best_parameters <-
-  results |>
-  extract_workflow_set_result(top_model) |>
-  select_best(metric = "roc_auc")
+rec <-
+  recipe(~ CabinNum, data = train_data) %>%
+  step_unknown(all_nominal_predictors(), new_level = "unknown") |> 
+  prep()
 
-best_model_workflow <-
-  results |> 
-  extract_workflow(top_model) |> 
-  finalize_workflow(best_parameters)
+table(juice(rec)$CabinNum, test_data$CabinNum, useNA = "always") %>%
+  as.data.frame() %>%
+  dplyr::filter(Freq > 0)
 
-best_model <- fit(best_model_workflow, train_data)
+tidy(rec, number = 1)
+renv::install("modeldata")
 
-predict(best_model, test_data)
+data(okc)
+
+rec <-
+  recipe(~ diet + location, data = okc) %>%
+  step_unknown(diet, new_level = "unknown diet") %>%
+  step_unknown(location, new_level = "unknown location") %>%
+  prep()
+
+table(juice(rec)$diet, okc$diet, useNA = "always") %>%
+  as.data.frame() %>%
+  dplyr::filter(Freq > 0)
+
+tidy(rec, number = 1)

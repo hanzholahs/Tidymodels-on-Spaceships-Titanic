@@ -1,8 +1,10 @@
+library(discrim)
+library(doParallel)
 library(tidyverse)
 library(tidymodels)
 library(patchwork)
-library(discrim)
-library(doParallel)
+
+
 
 # Setup -------------------------------------------------------------------
 
@@ -22,6 +24,7 @@ clean_spaceship <-
       select(PassengerId, GroupSize, everything()) |> 
       select(-TravelGroup)
   }
+
 
 
 # Data Import and Cleaning ------------------------------------------------
@@ -223,14 +226,15 @@ train_data |>
   geom_bar(position = "fill")
 
 
-# Feature engineering recipes ---------------------------------------------
+
+# Feature Engineering Recipes ---------------------------------------------
 basic_preproc <-
   recipe(Transported ~ GroupSize + HomePlanet + CryoSleep + CabinDeck +
            CabinNum + CabinSide + Destination + Age + VIP + RoomService +
            FoodCourt + ShoppingMall + Spa + VRDeck,
          data = train_data) |> 
   step_unknown(all_nominal_predictors()) |> 
-  step_impute_mean(all_numeric_predictors()) |> 
+  step_impute_median(all_numeric_predictors()) |> 
   step_other(CabinNum, threshold = 0.0025) |> 
   step_dummy(all_nominal_predictors())
 
@@ -239,7 +243,7 @@ transform_preproc <-
            CabinSide + Destination + Age + VIP + RoomService +
            FoodCourt + ShoppingMall + Spa + VRDeck,
          data = train_data) |> 
-  step_impute_mean(all_numeric_predictors()) |> 
+  step_impute_median(all_numeric_predictors()) |> 
   step_impute_knn(all_nominal_predictors()) |> 
   step_normalize(Age) |> 
   step_log(RoomService, FoodCourt, ShoppingMall, Spa, VRDeck, offset = 1) |> 
@@ -252,7 +256,7 @@ pca_preproc <-
            CabinSide + Destination + Age + VIP + RoomService +
            FoodCourt + ShoppingMall + Spa + VRDeck,
          data = train_data) |> 
-  step_impute_mean(all_numeric_predictors()) |> 
+  step_impute_median(all_numeric_predictors()) |> 
   step_impute_knn(all_nominal_predictors()) |> 
   step_normalize(Age) |> 
   step_log(RoomService, FoodCourt, ShoppingMall, Spa, VRDeck, offset = 1) |> 
@@ -264,7 +268,7 @@ pca_preproc <-
 preproc <-
   list(
     "basic" = basic_preproc,
-    "transform" = transform_preproc,
+    "trans" = transform_preproc,
     "pca" = pca_preproc
   )
 
@@ -291,93 +295,68 @@ dtree_spec <-
 
 # 3: XGBoost
 btree_spec <- 
-  boost_tree(trees = tune(), min_n = tune(), tree_depth = tune()) |> 
+  boost_tree(trees = tune(), min_n = tune(), tree_depth = tune(),
+             mtry = tune(), sample_size = tune(), loss_reduction = tune(),
+             stop_iter = tune()) |> 
   set_mode("classification")
 
 # 4: Random Forest
 rf_spec <- 
-  rand_forest(trees = tune(), min_n = tune()) |> 
+  rand_forest(trees = tune(), min_n = tune(), mtry = tune()) |> 
   set_mode("classification")
 
-# 5: Linear Discriminant Analysis
-lda_spec <- 
-  discrim_linear(penalty = tune(), engine = "mda") |>
-  set_mode("classification")
-
-# 6: Naive Bayes
-nb_spec <-
-  naive_Bayes(smoothness = tune(), Laplace = tune(), engine = "naivebayes") |> 
-  set_mode("classification")
-
-knn_spec <-
-  nearest_neighbor(neighbors = tune(), weight_func = tune()) |> 
-  set_mode("classification")
 
 # List all models
 models <-
   list(
-    # "LogisticRegression" = logreg_spec,
-    # "DecisionTree" = dtree_spec,
-    # "BoostedTree" = btree_spec,
-    # "RandomForest" = rf_spec,
-    # "LDA" = lda_spec,
-    # "NaiveBayes" = nb_spec,
-    "KNearestNeigbor" = knn_spec
+    "LogisticRegression" = logreg_spec,
+    "DecisionTree" = dtree_spec,
+    "BoostedTree" = btree_spec,
+    "RandomForest" = rf_spec
   )
 
+
 # Tune model's hyperparameters 
+cl <- makePSOCKcluster(8)
+
+registerDoParallel(cl)
+
 results <-
   workflow_set(preproc = preproc, models = models, cross = TRUE) |> 
   workflow_map(resamples = train_folds, fn = "tune_grid", verbose = TRUE,
-               grid = 5, seed = 1234)
+               grid = 20, seed = 1234)
 
-n_top <- 3
+stopCluster(cl)
 
-top_model_names <- rank_results(results, rank_metric = "roc_auc") |>
-  slice(1:(n_top*2)) |> pull(1) |> unique()
-
-predictions <- list()
-
-for (model_name in top_model_names) {
-  print(model_name)
-  best_parameters <-
-    results |>
-    extract_workflow_set_result(model_name) |>
-    select_best(metric = "roc_auc")
-  
-  top_model_workflow <-
-    results |> 
-    extract_workflow(model_name) |> 
-    finalize_workflow(best_parameters)
-  
-  model <- fit(top_model_workflow, train_data)
-  
-  predictions[[model_name]] <- predict(model, test_data)
-}
+gc()
 
 
-rec <-
-  recipe(~ CabinNum, data = train_data) %>%
-  step_unknown(all_nominal_predictors(), new_level = "unknown") |> 
-  prep()
 
-table(juice(rec)$CabinNum, test_data$CabinNum, useNA = "always") %>%
-  as.data.frame() %>%
-  dplyr::filter(Freq > 0)
+# Make Final Predictions --------------------------------------------------
 
-tidy(rec, number = 1)
-renv::install("modeldata")
+# find the model with the best hyperparameter
+top_model_name <- 
+  rank_results(results, rank_metric = "accuracy", select_best = TRUE) |> 
+  pull(wflow_id) |> 
+  _[1]
 
-data(okc)
+best_parameters <-
+  results |>
+  extract_workflow_set_result(top_model_name) |>
+  select_best(metric = "accuracy")
 
-rec <-
-  recipe(~ diet + location, data = okc) %>%
-  step_unknown(diet, new_level = "unknown diet") %>%
-  step_unknown(location, new_level = "unknown location") %>%
-  prep()
+# train with full data
+final_model <-
+  results |>
+  extract_workflow(top_model_name) |>
+  finalize_workflow(best_parameters) |>
+  fit(train_data)
 
-table(juice(rec)$diet, okc$diet, useNA = "always") %>%
-  as.data.frame() %>%
-  dplyr::filter(Freq > 0)
+# make predictions
+submission <-
+  predict(final_model, test_data) |>
+  bind_cols(select(test_data, PassengerId)) |>
+  mutate(Transported = if_else(.pred_class == 1, "True", "False")) |>
+  select(PassengerId, Transported)
 
-tidy(rec, number = 1)
+write_csv(submission, paste0("./data/submission.csv"))

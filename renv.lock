@@ -154,22 +154,6 @@
       ],
       "Hash": "543776ae6848fde2f48ff3816d0628bc"
     },
-    "bayestestR": {
-      "Package": "bayestestR",
-      "Version": "0.13.1",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R",
-        "datawizard",
-        "graphics",
-        "insight",
-        "methods",
-        "stats",
-        "utils"
-      ],
-      "Hash": "61f643ea5ee9fe0e70ab0246340b3c2e"
-    },
     "bit": {
       "Package": "bit",
       "Version": "4.0.5",
@@ -413,19 +397,6 @@
       ],
       "Hash": "b4c06e554f33344e044ccd7fdca750a9"
     },
-    "datawizard": {
-      "Package": "datawizard",
-      "Version": "0.9.0",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R",
-        "insight",
-        "stats",
-        "utils"
-      ],
-      "Hash": "1706690277f29a2ee69d59483e21c5c6"
-    },
     "dbplyr": {
       "Package": "dbplyr",
       "Version": "2.3.4",
@@ -531,27 +502,6 @@
         "utils"
       ],
       "Hash": "451e5edf411987991ab6a5410c45011f"
-    },
-    "dotwhisker": {
-      "Package": "dotwhisker",
-      "Version": "0.7.4",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R",
-        "dplyr",
-        "ggplot2",
-        "ggstance",
-        "grid",
-        "gtable",
-        "margins",
-        "parameters",
-        "purrr",
-        "rlang",
-        "stats",
-        "stringr"
-      ],
-      "Hash": "77bd34003137b5fd8e6584c8a772033b"
     },
     "dplyr": {
       "Package": "dplyr",
@@ -814,21 +764,6 @@
       ],
       "Hash": "e9839af82cc43fda486a638b68b439b2"
     },
-    "ggstance": {
-      "Package": "ggstance",
-      "Version": "0.3.6",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R",
-        "cli",
-        "ggplot2",
-        "plyr",
-        "rlang",
-        "withr"
-      ],
-      "Hash": "ef69648fcaaffebac4007ac4b43322ed"
-    },
     "globals": {
       "Package": "globals",
       "Version": "0.16.2",
@@ -1064,19 +999,6 @@
       ],
       "Hash": "d4e1d781a855d40ebb9ae3aa92daa68d"
     },
-    "insight": {
-      "Package": "insight",
-      "Version": "0.19.6",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R",
-        "methods",
-        "stats",
-        "utils"
-      ],
-      "Hash": "cc21c0957774c1602ec3324a5a47d798"
-    },
     "ipred": {
       "Package": "ipred",
       "Version": "0.9-14",
@@ -1254,22 +1176,6 @@
       ],
       "Hash": "7ce2733a9826b3aeb1775d56fd305472"
     },
-    "margins": {
-      "Package": "margins",
-      "Version": "0.3.26",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "MASS",
-        "data.table",
-        "grDevices",
-        "graphics",
-        "prediction",
-        "stats",
-        "utils"
-      ],
-      "Hash": "a7719c7b7989be666f8049e7d087fbea"
-    },
     "memoise": {
       "Package": "memoise",
       "Version": "2.0.1",
@@ -1423,23 +1329,6 @@
       ],
       "Hash": "bca377e1c87ec89ebed77bba00635b2e"
     },
-    "parameters": {
-      "Package": "parameters",
-      "Version": "0.21.3",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R",
-        "bayestestR",
-        "datawizard",
-        "graphics",
-        "insight",
-        "methods",
-        "stats",
-        "utils"
-      ],
-      "Hash": "d6b15d1e41faf8951b59f5b3051ad3e3"
-    },
     "parsnip": {
       "Package": "parsnip",
       "Version": "1.1.1",
@@ -1513,30 +1402,6 @@
         "utils"
       ],
       "Hash": "01f28d4278f15c76cddbea05899c5d6f"
-    },
-    "plyr": {
-      "Package": "plyr",
-      "Version": "1.8.9",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R",
-        "Rcpp"
-      ],
-      "Hash": "6b8177fd19982f0020743fadbfdbd933"
-    },
-    "prediction": {
-      "Package": "prediction",
-      "Version": "0.3.14",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R",
-        "data.table",
-        "stats",
-        "utils"
-      ],
-      "Hash": "0711ff44a086709b9b7441267ab303bf"
     },
     "prettyunits": {
       "Package": "prettyunits",
